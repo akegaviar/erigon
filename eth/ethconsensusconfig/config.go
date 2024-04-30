@@ -112,7 +112,7 @@ func CreateConsensusEngine(ctx context.Context, nodeConfig *nodecfg.Config, chai
 				panic(err)
 			}
 
-			polygonBridge, err := bridge.NewBridge(ctx, nodeConfig, "polygon-bridge", readonly, logger)
+			polygonBridge, err := bridge.NewBridge(ctx, nodeConfig, "polygon-bridge", readonly, logger, heimdallClient.FetchStateSyncEvents, genesisContractsClient.StateReceiverABI)
 			if err != nil {
 				panic(err)
 			}

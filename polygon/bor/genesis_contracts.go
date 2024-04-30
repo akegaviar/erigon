@@ -37,7 +37,7 @@ type GenesisContracts interface {
 
 type GenesisContractsClient struct {
 	validatorSetABI       abi.ABI
-	stateReceiverABI      abi.ABI
+	StateReceiverABI      abi.ABI
 	ValidatorContract     libcommon.Address
 	StateReceiverContract libcommon.Address
 	chainConfig           *chain.Config
@@ -52,7 +52,7 @@ func NewGenesisContractsClient(
 ) *GenesisContractsClient {
 	return &GenesisContractsClient{
 		validatorSetABI:       GenesisContractValidatorSetABI(),
-		stateReceiverABI:      GenesisContractStateReceiverABI(),
+		StateReceiverABI:      GenesisContractStateReceiverABI(),
 		ValidatorContract:     libcommon.HexToAddress(validatorContract),
 		StateReceiverContract: libcommon.HexToAddress(stateReceiverContract),
 		chainConfig:           chainConfig,
@@ -68,7 +68,7 @@ func (gc *GenesisContractsClient) CommitState(event rlp.RawValue, syscall consen
 func (gc *GenesisContractsClient) LastStateId(syscall consensus.SystemCall) (*big.Int, error) {
 	const method = "lastStateId"
 
-	data, err := gc.stateReceiverABI.Pack(method)
+	data, err := gc.StateReceiverABI.Pack(method)
 	if err != nil {
 		gc.logger.Error("[bor] Unable to pack tx for LastStateId", "err", err)
 		return nil, err
@@ -80,7 +80,7 @@ func (gc *GenesisContractsClient) LastStateId(syscall consensus.SystemCall) (*bi
 	}
 
 	var ret = new(*big.Int)
-	if err := gc.stateReceiverABI.UnpackIntoInterface(ret, method, result); err != nil {
+	if err := gc.StateReceiverABI.UnpackIntoInterface(ret, method, result); err != nil {
 		return nil, err
 	}
 	return *ret, nil

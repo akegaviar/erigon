@@ -26,10 +26,10 @@ type Service interface {
 type service struct {
 	sync *Sync
 
-	p2pService p2p.Service
-	store      Store
+	p2pService    p2p.Service
+	store         Store
 	polygonBridge *bridge.Bridge
-	events     *TipEvents
+	events        *TipEvents
 }
 
 func NewService(
@@ -94,11 +94,11 @@ func NewService(
 		logger,
 	)
 	return &service{
-		sync:       sync,
-		p2pService: p2pService,
-		store:      store,
+		sync:          sync,
+		p2pService:    p2pService,
+		store:         store,
 		polygonBridge: polygonBridge,
-		events:     events,
+		events:        events,
 	}
 }
 
@@ -137,7 +137,11 @@ func (s *service) Run(ctx context.Context) error {
 	}()
 
 	go func() {
-		s.polygonBridge.Run()
+		err := s.polygonBridge.Run(ctx)
+		if (err != nil) && (ctx.Err() == nil) {
+			serviceErr = err
+			cancel()
+		}
 	}()
 
 	<-ctx.Done()

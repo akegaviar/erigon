@@ -137,7 +137,7 @@ func (c *Client) FetchStateSyncEvents(ctx context.Context, fromID uint64, to tim
 			return nil, err
 		}
 
-		c.logger.Trace(heimdallLogPrefix("Fetching state sync events"), "queryParams", url.RawQuery)
+		c.logger.Warn(heimdallLogPrefix("Fetching state sync events"), "queryParams", url.RawQuery)
 
 		ctx = withRequestType(ctx, stateSyncRequest)
 
