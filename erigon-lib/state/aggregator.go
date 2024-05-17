@@ -836,12 +836,12 @@ func (ac *AggregatorRoTx) PruneSmallBatchesDb(ctx context.Context, timeout time.
 			//     can't interrupt by ctrl+c and leave dirt in DB
 			stat, err := ac.Prune(innerCtx, tx, pruneLimit, withWarmup, aggLogEvery)
 			if err != nil {
-				ac.a.logger.Warn("[snapshots] PruneSmallBatches failed", "err", err)
+				ac.a.logger.Warn("[snapshots] State PruneBatches failed", "err", err)
 				return err
 			}
 			if stat == nil {
 				if fstat := fullStat.String(); fstat != "" {
-					ac.a.logger.Info("[snapshots] PruneSmallBatches finished", "took", time.Since(started).String(), "stat", fstat)
+					ac.a.logger.Info("[snapshots] State PruneBatches finished", "took", time.Since(started).String(), "stat", fstat)
 				}
 				goExit = true
 				return nil
@@ -869,6 +869,11 @@ func (ac *AggregatorRoTx) PruneSmallBatchesDb(ctx context.Context, timeout time.
 					"stepsRangeInDB", ac.a.StepsRangeInDBAsStr(tx),
 					"pruned", fullStat.String(),
 				)
+			case <-ctx.Done():
+				if fstat := fullStat.String(); fstat != "" {
+					ac.a.logger.Info("[snapshots] State PruneBatches interrupted", "took", time.Since(started).String(), "stat", fstat)
+				}
+				return nil
 			default:
 			}
 			return nil
@@ -953,6 +958,9 @@ func (ac *AggregatorRoTx) PruneSmallBatches(ctx context.Context, timeout time.Du
 
 		select {
 		case <-localTimeout.C: //must be first to improve responsivness
+			if fstat := fullStat.String(); fstat != "" {
+				ac.a.logger.Info("[snapshots] PruneSmallBatches finished by timeout", "took", time.Since(started).String(), "stat", fstat)
+			}
 			return true, nil
 		case <-logEvery.C:
 			ac.a.logger.Info("[snapshots] pruning state",
@@ -963,6 +971,9 @@ func (ac *AggregatorRoTx) PruneSmallBatches(ctx context.Context, timeout time.Du
 				"pruned", fullStat.String(),
 			)
 		case <-ctx.Done():
+			if fstat := fullStat.String(); fstat != "" {
+				ac.a.logger.Info("[snapshots] PruneSmallBatches interrupted", "took", time.Since(started).String(), "stat", fstat)
+			}
 			return false, ctx.Err()
 		default:
 		}

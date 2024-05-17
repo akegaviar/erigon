@@ -289,7 +289,6 @@ func ExecV3(ctx context.Context,
 	}
 
 	blockNum = doms.BlockNum()
-	initialBlockNum := blockNum
 	outputTxNum.Store(doms.TxNum())
 	if maxBlockNum-blockNum > 16 {
 		log.Info(fmt.Sprintf("[%s] starting", execStage.LogPrefix()),
@@ -605,6 +604,9 @@ func ExecV3(ctx context.Context,
 		defer clean()
 	}
 
+	statePruneBGAllowed := !parallel
+	var statePruneRunning atomic.Bool
+
 	//fmt.Printf("exec blocks: %d -> %d\n", blockNum, maxBlockNum)
 
 	var b *types.Block
@@ -847,6 +849,28 @@ Loop:
 			//	}
 			//}
 
+			if statePruneBGAllowed && statePruneRunning.CompareAndSwap(false, true) {
+				atx := applyTx.(state2.HasAggTx).AggTx().(*state2.AggregatorRoTx)
+				canPruneBackground := false
+				err := cfg.db.View(ctx, func(tx kv.Tx) error {
+					canPruneBackground = atx.CanPrune(tx, outputTxNum.Load())
+					return nil
+				})
+				if err != nil {
+					statePruneRunning.Store(false)
+					return err
+				}
+
+				if canPruneBackground {
+					go func() {
+						defer statePruneRunning.Store(false)
+						if _, err := atx.PruneSmallBatchesDb(ctx, 1*time.Minute, cfg.db); err != nil {
+							logger.Warn("PruneSmallBatchesDb failed", "err", err)
+						}
+						return
+					}()
+				}
+			}
 			outputBlockNum.SetUint64(blockNum)
 
 			select {
@@ -872,14 +896,8 @@ Loop:
 				t1 = time.Since(tt)
 
 				tt = time.Now()
-				// If execute more than 100 blocks then, it is safe to assume that we are not on the tip of the chain.
-				// In this case, we can prune the state to save memory.
-				pruneBlockMargin := uint64(100)
-
-				if blockNum-initialBlockNum > pruneBlockMargin {
-					if _, err := applyTx.(state2.HasAggTx).AggTx().(*state2.AggregatorRoTx).PruneSmallBatches(ctx, 10*time.Minute, applyTx); err != nil {
-						return err
-					}
+				if _, err := applyTx.(state2.HasAggTx).AggTx().(*state2.AggregatorRoTx).PruneSmallBatches(ctx, 10*time.Minute, applyTx); err != nil {
+					return err
 				}
 				t3 = time.Since(tt)
 
@@ -950,6 +968,9 @@ Loop:
 	}
 
 	if u != nil && !u.HasUnwindPoint() {
+		if _, err := applyTx.(state2.HasAggTx).AggTx().(*state2.AggregatorRoTx).PruneSmallBatches(ctx, time.Minute, applyTx); err != nil {
+			return err
+		}
 		if b != nil {
 			_, err := flushAndCheckCommitmentV3(ctx, b.HeaderNoCopy(), applyTx, doms, cfg, execStage, stageProgress, parallel, logger, u, inMemExec)
 			if err != nil {
